@@ -1,23 +1,14 @@
-#ifndef _SHELL_H_
-#define _SHELL_H_
+#ifndef SHELL_H
+#define SHELL_H
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <errno.h>
 
-/* Define buffer sizes for tokenization and line reading */
-#define READ_BUF_SIZE 1024
-#define TOKEN_BUF_SIZE 64  /* Adjust as needed */
+/* Function prototypes */
+void display_prompt(void);
+int execute_command(char *cmd);
+void print_error(char *cmd);
 
-extern char **environ;
-
-/* Function Prototypes */
-char **tokenize(char *line, const char *delim);
-
-#endif /* _SHELL_H_ */
+#endif /* SHELL_H */

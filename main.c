@@ -2,48 +2,40 @@
 
 /**
  * main - Entry point for the simple shell
- * Return: Always 0 (Success)
+ *
+ * Return: 0 on success, or appropriate exit code
  */
 int main(void)
 {
 	char *line = NULL;
 	size_t len = 0;
 	ssize_t nread;
-	char **argv;
-	int status;
 
 	while (1)
 	{
-		printf("#cisfun$ ");  /* Display prompt */
-		nread = getline(&line, &len, stdin);  /* Read command */
+		display_prompt();
+		nread = getline(&line, &len, stdin);
+
 		if (nread == -1)
 		{
+			free(line);
 			if (feof(stdin))
 			{
-				/* Handle EOF (Ctrl+D) */
-				printf("\n");
-				free(line);
+				/* EOF received (Ctrl+D) */
+				putchar('\n');
 				exit(EXIT_SUCCESS);
-			} else
+			}
+			else
 			{
-				/* Handle other getline errors */
+				/* Some other error occurred */
 				perror("getline");
-				continue;
+				exit(EXIT_FAILURE);
 			}
 		}
 
-		line[nread - 1] = '\0';  /* Remove newline character */
-		argv = tokenize(line, " ");  /* Tokenize the input */
-
-		if (argv[0] != NULL)
-		{
-			if (execve(argv[0], argv, environ) == -1)
-			{
-				perror(argv[0]);
-			}
-		}
-
-		free(argv);
+		line[nread - 1] = '\0'; /* Remove newline character */
+		if (execute_command(line) == -1)
+			print_error(line);
 	}
 
 	free(line);
