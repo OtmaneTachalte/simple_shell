@@ -1,43 +1,134 @@
 #include "shell.h"
 
+void sig_hlr(int sig);
+int execute(char **args, char **front);
+
 /**
- * main - Entry point for the simple shell
- *
- * Return: 0 on success, or appropriate exit code
+ * sig_hlr - Prints a new prompt upon a signal.
+ * @sig: The signal.
  */
-int main(void)
+void sig_hlr(int sig)
 {
-	char *line = NULL;
-	size_t len = 0;
-	ssize_t nread;
+	char *new_prompt = "\n$ ";
+
+	(void)sig;
+	signal(SIGINT, sig_hlr);
+	write(STDIN_FILENO, new_prompt, 3);
+}
+
+/**
+ * execute - Executes a command in a child process.
+ * @args: An array of arguments.
+ * @front: A double pointer to the beginning of args.
+ *
+ * Return: If an error occurs - a corresponding error code.
+ *         O/w - The exit value of the last executed command.
+ */
+int execute(char **args, char **front)
+{
+	pid_t child_pid;
+	int status, flag = 0, ret = 0;
+	char *command = args[0];
+
+	if (command[0] != '/' && command[0] != '.')
+	{
+		flag = 1;
+		command = get_loca(command);
+	}
+
+	if (!command || (access(command, F_OK) == -1))
+	{
+		if (errno == EACCES)
+			ret = (create_err(args, 126));
+		else
+			ret = (create_err(args, 127));
+	}
+	else
+	{
+		child_pid = fork();
+		if (child_pid == -1)
+		{
+			if (flag)
+				free(command);
+			perror("Error child:");
+			return (1);
+		}
+		if (child_pid == 0)
+		{
+			execve(command, args, environ);
+			if (errno == EACCES)
+				ret = (create_err(args, 126));
+			free_env();
+			free_args(args, front);
+			free_aliases_list(aliases);
+			_exit(ret);
+		}
+		else
+		{
+			wait(&status);
+			ret = WEXITSTATUS(status);
+		}
+	}
+	if (flag)
+		free(command);
+	return (ret);
+}
+
+/**
+ * main - Runs a simple UNIX command interpreter.
+ * @argc: The number of arguments supplied to the program.
+ * @argv: An array of pointers to the arguments.
+ *
+ * Return: The return value of the last executed command.
+ */
+int main(int argc, char *argv[])
+{
+	int ret = 0, retn;
+	int *exe_ret = &retn;
+	char *prompt = "$ ", *new_line = "\n";
+
+	name = argv[0];
+	histry = 1;
+	aliases = NULL;
+	signal(SIGINT, sig_hlr);
+
+	*exe_ret = 0;
+	environ = _cpenv();
+	if (!environ)
+		exit(-100);
+
+	if (argc != 1)
+	{
+		ret = proc_file_commands(argv[1], exe_ret);
+		free_env();
+		free_aliases_list(aliases);
+		return (*exe_ret);
+	}
+
+	if (!isatty(STDIN_FILENO))
+	{
+		while (ret != END_OF_FILE && ret != EXIT)
+			ret = handle_args(exe_ret);
+		free_env();
+		free_aliases_list(aliases);
+		return (*exe_ret);
+	}
 
 	while (1)
 	{
-		display_prompt();
-		nread = getline(&line, &len, stdin);
-
-		if (nread == -1)
+		write(STDOUT_FILENO, prompt, 2);
+		ret = handle_args(exe_ret);
+		if (ret == END_OF_FILE || ret == EXIT)
 		{
-			free(line);
-			if (feof(stdin))
-			{
-				/* EOF received (Ctrl+D) */
-				putchar('\n');
-				exit(EXIT_SUCCESS);
-			}
-			else
-			{
-				/* Some other error occurred */
-				perror("getline");
-				exit(EXIT_FAILURE);
-			}
+			if (ret == END_OF_FILE)
+				write(STDOUT_FILENO, new_line, 1);
+			free_env();
+			free_aliases_list(aliases);
+			exit(*exe_ret);
 		}
-
-		line[nread - 1] = '\0'; /* Remove newline character */
-		if (execute_command(line) == -1)
-			print_error(line);
 	}
 
-	free(line);
-	return (0);
+	free_env();
+	free_aliases_list(aliases);
+	return (*exe_ret);
 }
